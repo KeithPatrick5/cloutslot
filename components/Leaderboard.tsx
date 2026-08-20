@@ -7,17 +7,27 @@ type Provider = "stripe" | "nowpayments";
 type Props = { initialListings: Listing[]; demo: boolean; paymentProviders: Provider[] };
 
 function money(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(cents / 100);
 }
 
 function initials(name: string) {
-  return name.split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 }
 
 export default function Leaderboard({ initialListings, demo, paymentProviders }: Props) {
   const [listings, setListings] = useState(initialListings);
   const [modalOpen, setModalOpen] = useState(false);
-  const [suggestedBid, setSuggestedBid] = useState(Math.max(1, (initialListings[0]?.bid_cents ?? 0) / 100 + 1));
+  const [suggestedBid, setSuggestedBid] = useState(
+    Math.max(1, (initialListings[0]?.bid_cents ?? 0) / 100 + 1),
+  );
   const [provider, setProvider] = useState<Provider>(paymentProviders[0] ?? "stripe");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -34,14 +44,20 @@ export default function Leaderboard({ initialListings, demo, paymentProviders }:
     return () => window.clearInterval(timer);
   }, [demo]);
 
-  const stats = useMemo(() => ({
-    totalBid: listings.reduce((sum, item) => sum + item.bid_cents, 0),
-    clicks: listings.reduce((sum, item) => sum + item.clicks, 0),
-    count: listings.length,
-  }), [listings]);
+  const stats = useMemo(
+    () => ({
+      totalBid: listings.reduce((sum, item) => sum + item.bid_cents, 0),
+      clicks: listings.reduce((sum, item) => sum + item.clicks, 0),
+      count: listings.length,
+    }),
+    [listings],
+  );
+
+  const leader = listings[0];
+  const takeFirst = (leader?.bid_cents ?? 0) + 100;
 
   function openBid(amount?: number) {
-    setSuggestedBid(amount ?? Math.max(1, (listings[0]?.bid_cents ?? 0) / 100 + 1));
+    setSuggestedBid(amount ?? Math.max(1, (leader?.bid_cents ?? 0) / 100 + 1));
     setError("");
     setModalOpen(true);
   }
@@ -50,6 +66,7 @@ export default function Leaderboard({ initialListings, demo, paymentProviders }:
     event.preventDefault();
     setSubmitting(true);
     setError("");
+
     const form = new FormData(event.currentTarget);
     const payload = {
       name: String(form.get("name") || ""),
@@ -76,84 +93,192 @@ export default function Leaderboard({ initialListings, demo, paymentProviders }:
   }
 
   return (
-    <main>
-      <header className="nav shell">
-        <a className="brand" href="#top"><span className="brand-mark">C$</span><span>CloutSlot</span></a>
-        <div className="nav-actions"><a href="#rules" className="text-link">How it works</a><button className="button small" onClick={() => openBid()}>Buy a slot</button></div>
+    <main id="top">
+      <header className="site-header">
+        <div className="shell nav">
+          <a className="brand" href="#top" aria-label="CloutSlot home">
+            <span className="brand-mark">C</span>
+            <span className="brand-word">CloutSlot</span>
+            <span className="brand-domain">.space</span>
+          </a>
+          <nav className="nav-actions" aria-label="Primary navigation">
+            <a href="#how" className="text-link">How it works</a>
+            <button className="button small" onClick={() => openBid()}>Buy a slot</button>
+          </nav>
+        </div>
       </header>
 
-      <section className="hero shell" id="top">
-        <div className="eyebrow"><span className="live-dot" /> LIVE MONEY LEADERBOARD</div>
-        <h1>Pay more.<br />Sit higher.<br /><span>Get seen.</span></h1>
-        <p className="hero-copy">Your bid is your rank. Put your company, project, newsletter, or weird side hustle in front of everyone watching.</p>
-        <div className="hero-actions">
-          <button className="button hero-button" onClick={() => openBid()}>Take #1 for {money((listings[0]?.bid_cents ?? 0) + 100)}</button>
-          <a className="secondary-button" href="#leaderboard">See the board ↓</a>
+      <section className="intro shell">
+        <div className="intro-copy">
+          <div className="eyebrow"><span className="live-dot" /> Live paid leaderboard</div>
+          <h1>Buy attention.<br /><span>Hold your spot.</span></h1>
+          <p>
+            Every dollar is a point. Higher bid means higher rank. Every slot links directly to your site.
+            No algorithm, no judges, no mystery.
+          </p>
+          <div className="intro-actions">
+            <button className="button primary" onClick={() => openBid()}>Take #1 for {money(takeFirst)}</button>
+            <a href="#leaderboard" className="secondary-button">View leaderboard</a>
+          </div>
         </div>
-        <p className="microcopy">No subscription. No algorithm. No pretending this is merit-based.</p>
+
+        <aside className="leader-card" aria-label="Current number one listing">
+          <div className="leader-card-top">
+            <span>Current #1</span>
+            <span className="status-pill">LIVE</span>
+          </div>
+          {leader ? (
+            <>
+              <div className="leader-project">
+                <div className="leader-logo">
+                  {leader.logo_url ? <img src={leader.logo_url} alt="" /> : <span>{initials(leader.name)}</span>}
+                </div>
+                <div>
+                  <strong>{leader.name}</strong>
+                  <p>{leader.tagline}</p>
+                </div>
+              </div>
+              <div className="leader-price">
+                <span>Leading bid</span>
+                <strong>{money(leader.bid_cents)}</strong>
+              </div>
+            </>
+          ) : (
+            <div className="leader-empty">
+              <strong>#1 is empty.</strong>
+              <p>Be the first name on the board.</p>
+            </div>
+          )}
+          <button className="leader-card-button" onClick={() => openBid()}>
+            Take first place <span>{money(takeFirst)}</span>
+          </button>
+        </aside>
       </section>
 
-      <section className="stats shell">
+      <section className="market-stats shell" aria-label="Leaderboard statistics">
         <div><strong>{stats.count}</strong><span>paid slots</span></div>
-        <div><strong>{money(stats.totalBid)}</strong><span>on the board</span></div>
+        <div><strong>{money(stats.totalBid)}</strong><span>total on board</span></div>
         <div><strong>{stats.clicks.toLocaleString()}</strong><span>outbound clicks</span></div>
-        <div><strong>{money((listings[0]?.bid_cents ?? 0) + 100)}</strong><span>to take #1</span></div>
+        <div><strong>{money(takeFirst)}</strong><span>takes #1</span></div>
       </section>
 
-      {demo && <div className="demo-banner shell"><strong>Demo mode.</strong> Add Supabase and at least one payment provider to turn on real bidding.</div>}
+      {demo && (
+        <div className="demo-banner shell">
+          <strong>Demo mode.</strong> Add Supabase and a payment provider to turn on live bidding.
+        </div>
+      )}
 
       <section className="board-section shell" id="leaderboard">
-        <div className="section-heading"><div><div className="eyebrow">THE BOARD</div><h2>Money talks.</h2></div><button className="button" onClick={() => openBid()}>Get on the board</button></div>
+        <div className="board-titlebar">
+          <div>
+            <div className="eyebrow">THE LEADERBOARD</div>
+            <h2>Money decides the order.</h2>
+          </div>
+          <button className="button" onClick={() => openBid()}>Get on the board</button>
+        </div>
+
         <div className="leaderboard">
-          <div className="board-head"><span>Rank</span><span>Project</span><span>Clicks</span><span>Bid</span><span /></div>
+          <div className="board-head">
+            <span>Rank</span>
+            <span>Project</span>
+            <span>Clicks</span>
+            <span>Total bid</span>
+            <span />
+          </div>
+
           {listings.map((item, index) => (
             <div className={`row ${index === 0 ? "winner" : ""}`} key={item.id}>
-              <div className="rank">{index === 0 ? "♛" : `#${index + 1}`}</div>
-              <div className="project">
-                <a className="avatar" href={demo ? item.url : `/go/${item.id}`} target="_blank" rel="noreferrer">{item.logo_url ? <img src={item.logo_url} alt="" /> : <span>{initials(item.name)}</span>}</a>
-                <div><a className="project-name" href={demo ? item.url : `/go/${item.id}`} target="_blank" rel="noreferrer">{item.name} ↗</a><p>{item.tagline}</p></div>
+              <div className="rank">
+                <span className="rank-number">{index + 1}</span>
               </div>
-              <div className="clicks">{item.clicks.toLocaleString()}</div>
-              <div className="bid">{money(item.bid_cents)}</div>
-              <div className="row-action"><button onClick={() => openBid(item.bid_cents / 100 + 1)}>Beat for {money(item.bid_cents + 100)}</button></div>
+
+              <div className="project">
+                <a className="avatar" href={demo ? item.url : `/go/${item.id}`} target="_blank" rel="noreferrer">
+                  {item.logo_url ? <img src={item.logo_url} alt="" /> : <span>{initials(item.name)}</span>}
+                </a>
+                <div className="project-copy">
+                  <a className="project-name" href={demo ? item.url : `/go/${item.id}`} target="_blank" rel="noreferrer">
+                    {item.name}<span>↗</span>
+                  </a>
+                  <p>{item.tagline}</p>
+                </div>
+              </div>
+
+              <div className="clicks"><span className="mobile-label">Clicks</span>{item.clicks.toLocaleString()}</div>
+              <div className="bid"><span className="mobile-label">Bid</span>{money(item.bid_cents)}</div>
+              <div className="row-action">
+                <button onClick={() => openBid(item.bid_cents / 100 + 1)}>Beat {money(item.bid_cents + 100)}</button>
+              </div>
             </div>
           ))}
-          {listings.length === 0 && <div className="empty">Nobody has paid yet. #1 is yours for $1.</div>}
+
+          {listings.length === 0 && (
+            <div className="empty">
+              <strong>Nobody has paid yet.</strong>
+              <span>#1 is yours for $1.</span>
+              <button className="button" onClick={() => openBid(1)}>Claim it</button>
+            </div>
+          )}
         </div>
       </section>
 
-      <section className="rules shell" id="rules">
-        <div className="rules-copy"><div className="eyebrow">THE ENTIRE BUSINESS MODEL</div><h2>Three rules. That&apos;s it.</h2></div>
+      <section className="how shell" id="how">
+        <div className="how-heading">
+          <div className="eyebrow">HOW IT WORKS</div>
+          <h2>Three rules. Nothing hidden.</h2>
+        </div>
         <div className="rule-grid">
-          <article><span>01</span><h3>Pay your bid.</h3><p>Your total paid amount becomes your score. Existing listings only pay the difference when they raise their bid.</p></article>
-          <article><span>02</span><h3>Higher money wins.</h3><p>The board sorts by total bid. If someone pays more, they move above you. You remain listed.</p></article>
-          <article><span>03</span><h3>Traffic is the prize.</h3><p>Every listing links out. Clicks are counted publicly so buyers can see whether the experiment is working.</p></article>
+          <article><span>01</span><h3>Pick your total bid.</h3><p>Your bid is your score. If your site is already listed, you only pay the difference to move higher.</p></article>
+          <article><span>02</span><h3>Higher money ranks higher.</h3><p>Someone can pass you at any time. You keep your listing and can raise your bid whenever you want.</p></article>
+          <article><span>03</span><h3>Every click goes to you.</h3><p>Your listing links directly to your site, and outbound clicks are shown publicly on the board.</p></article>
         </div>
       </section>
 
-      <section className="cta shell"><p>There is no secret growth algorithm here.</p><h2>It&apos;s a public auction for attention.</h2><button className="button hero-button" onClick={() => openBid()}>Buy your slot</button></section>
-      <footer className="footer shell"><div className="brand"><span className="brand-mark">C$</span><span>CloutSlot</span></div><p>Your wallet has entered the chat.</p></footer>
+      <section className="closing shell">
+        <div>
+          <span className="eyebrow">NO ALGORITHM. JUST A NUMBER.</span>
+          <h2>How badly do you want the top slot?</h2>
+        </div>
+        <button className="button primary" onClick={() => openBid()}>Buy your slot</button>
+      </section>
+
+      <footer className="footer shell">
+        <div className="brand"><span className="brand-mark">C</span><span className="brand-word">CloutSlot</span><span className="brand-domain">.space</span></div>
+        <p>Placement is paid. Traffic is earned.</p>
+      </footer>
 
       {modalOpen && (
         <div className="modal-backdrop" onMouseDown={(e) => { if (e.currentTarget === e.target) setModalOpen(false); }}>
           <div className="modal" role="dialog" aria-modal="true" aria-labelledby="bid-title">
             <button className="close" onClick={() => setModalOpen(false)} aria-label="Close">×</button>
-            <div className="eyebrow">BUY ATTENTION</div><h2 id="bid-title">Claim your slot.</h2>
-            <p className="modal-intro">Choose your total bid. If this URL is already listed, checkout only charges the difference.</p>
+            <div className="eyebrow">BUY A SLOT</div>
+            <h2 id="bid-title">Choose your rank.</h2>
+            <p className="modal-intro">Set your total bid. If this URL is already listed, checkout only charges the difference.</p>
+
             <form onSubmit={submitBid}>
               <label>Project name<input name="name" maxLength={60} placeholder="Acme" required /></label>
               <label>Website URL<input name="url" type="url" placeholder="https://acme.com" required /></label>
-              <label>One-line pitch<input name="tagline" maxLength={120} placeholder="Make it interesting." required /></label>
+              <label>One-line pitch<input name="tagline" maxLength={120} placeholder="Tell people why they should click." required /></label>
               <label>Logo URL <em>optional</em><input name="logoUrl" type="url" placeholder="https://.../logo.png" /></label>
               <label>Your total bid<div className="money-input"><span>$</span><input name="bid" type="number" min="1" step="1" defaultValue={Math.ceil(suggestedBid)} required /></div></label>
-              <fieldset className="payment-methods"><legend>Pay with</legend>
-                <button type="button" className={provider === "stripe" ? "payment-choice active" : "payment-choice"} disabled={!paymentProviders.includes("stripe")} onClick={() => setProvider("stripe")}><strong>Card / wallet</strong><span>Stripe</span></button>
-                <button type="button" className={provider === "nowpayments" ? "payment-choice active" : "payment-choice"} disabled={!paymentProviders.includes("nowpayments")} onClick={() => setProvider("nowpayments")}><strong>Crypto</strong><span>NOWPayments</span></button>
+
+              <fieldset className="payment-methods">
+                <legend>Pay with</legend>
+                <button type="button" className={provider === "stripe" ? "payment-choice active" : "payment-choice"} disabled={!paymentProviders.includes("stripe")} onClick={() => setProvider("stripe")}>
+                  <strong>Card / wallet</strong><span>Stripe</span>
+                </button>
+                <button type="button" className={provider === "nowpayments" ? "payment-choice active" : "payment-choice"} disabled={!paymentProviders.includes("nowpayments")} onClick={() => setProvider("nowpayments")}>
+                  <strong>Crypto</strong><span>NOWPayments</span>
+                </button>
               </fieldset>
-              {paymentProviders.length === 0 && <div className="form-error">No payment provider configured. Run npm run setup:payments.</div>}
+
+              {paymentProviders.length === 0 && <div className="form-error">No payment provider is configured.</div>}
               {error && <div className="form-error">{error}</div>}
-              <button className="button modal-button" type="submit" disabled={submitting || paymentProviders.length === 0}>{submitting ? "Opening checkout…" : "Continue to payment →"}</button>
+              <button className="button modal-button" type="submit" disabled={submitting || paymentProviders.length === 0}>
+                {submitting ? "Opening checkout…" : "Continue to payment →"}
+              </button>
             </form>
+
             <p className="fineprint">Listings may be removed for fraud, malware, illegal content, impersonation, or abuse. Payment buys placement, not guaranteed traffic.</p>
           </div>
         </div>
