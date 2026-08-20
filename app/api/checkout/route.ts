@@ -16,9 +16,10 @@ function centsToDollars(cents: number) {
 
 export async function POST(request: Request) {
   let checkoutId: string | null = null;
+
   try {
     if (!hasLiveDatabase()) {
-      return NextResponse.json({ error: "Demo mode is active. Configure Supabase to enable payments." }, { status: 503 });
+      return NextResponse.json({ error: "The leaderboard database is unavailable." }, { status: 503 });
     }
 
     const body = await request.json();
@@ -28,28 +29,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `${provider || "That payment method"} is not configured.` }, { status: 503 });
     }
 
-    const name = clean(body.name, 60);
-    const tagline = clean(body.tagline, 120);
+    const submittedName = clean(body.name, 60);
+    const submittedTagline = clean(body.tagline, 120);
     const rawUrl = clean(body.url, 500);
     const rawLogo = clean(body.logoUrl, 500);
     const targetDollars = Number(body.targetBidDollars);
 
-    if (!name || !tagline || !rawUrl || !Number.isFinite(targetDollars)) {
+    if (!submittedName || !submittedTagline || !rawUrl || !Number.isFinite(targetDollars)) {
       return NextResponse.json({ error: "Missing or invalid fields." }, { status: 400 });
     }
 
     const normalizedUrl = normalizeUrl(rawUrl);
     const urlKey = normalizedUrl.toLowerCase();
     const targetBidCents = Math.round(targetDollars * 100);
-    if (targetBidCents < 100) return NextResponse.json({ error: "Minimum total bid is $1." }, { status: 400 });
+    if (targetBidCents < 100) {
+      return NextResponse.json({ error: "Minimum total bid is $1." }, { status: 400 });
+    }
 
-    let logoUrl = "";
-    if (rawLogo) logoUrl = normalizeUrl(rawLogo);
+    let submittedLogoUrl = "";
+    if (rawLogo) submittedLogoUrl = normalizeUrl(rawLogo);
 
     const supabase = getAdminClient()!;
     const { data: existing, error: lookupError } = await supabase
       .from("listings")
-      .select("id,bid_cents")
+      .select("id,name,tagline,url,logo_url,bid_cents")
       .eq("url_key", urlKey)
       .maybeSingle();
     if (lookupError) throw lookupError;
@@ -57,8 +60,19 @@ export async function POST(request: Request) {
     const currentBid = Number(existing?.bid_cents ?? 0);
     const amountToCharge = targetBidCents - currentBid;
     if (amountToCharge < 100) {
-      return NextResponse.json({ error: `That URL is already at $${(currentBid / 100).toFixed(0)}. Raise the total bid by at least $1.` }, { status: 400 });
+      return NextResponse.json(
+        { error: `That URL is already at $${(currentBid / 100).toFixed(0)}. Raise the total bid by at least $1.` },
+        { status: 400 },
+      );
     }
+
+    // Re-bidding an existing URL can increase its score, but it cannot silently
+    // rewrite the listing identity. That prevents a bidder from paying $1 to
+    // hijack another project's name, pitch, or logo.
+    const name = existing?.name ?? submittedName;
+    const tagline = existing?.tagline ?? submittedTagline;
+    const listingUrl = existing?.url ?? normalizedUrl;
+    const logoUrl = existing?.logo_url ?? (submittedLogoUrl || null);
 
     checkoutId = crypto.randomUUID();
     const listingId = existing?.id ?? crypto.randomUUID();
@@ -68,9 +82,9 @@ export async function POST(request: Request) {
       listing_id: listingId,
       name,
       tagline,
-      url: normalizedUrl,
+      url: listingUrl,
       url_key: urlKey,
-      logo_url: logoUrl || null,
+      logo_url: logoUrl,
       amount_cents: amountToCharge,
     });
     if (intentError) throw intentError;
@@ -79,24 +93,33 @@ export async function POST(request: Request) {
 
     if (provider === "stripe") {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        client_reference_id: checkoutId,
-        line_items: [{
-          quantity: 1,
-          price_data: {
-            currency: "usd",
-            unit_amount: amountToCharge,
-            product_data: {
-              name: `CloutSlot bid — ${name}`,
-              description: `Add ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amountToCharge / 100)} to the public leaderboard bid.`,
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: "payment",
+          client_reference_id: checkoutId,
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: "usd",
+                unit_amount: amountToCharge,
+                product_data: {
+                  name: `CloutSlot bid — ${name}`,
+                  description: `Increase this listing to ${new Intl.NumberFormat("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                    maximumFractionDigits: 0,
+                  }).format(targetBidCents / 100)} total.`,
+                },
+              },
             },
-          },
-        }],
-        success_url: `${siteUrl}/?paid=1&provider=stripe`,
-        cancel_url: `${siteUrl}/?canceled=1`,
-        metadata: { checkout_id: checkoutId },
-      });
+          ],
+          success_url: `${siteUrl}/?paid=1&provider=stripe`,
+          cancel_url: `${siteUrl}/?canceled=1`,
+          metadata: { checkout_id: checkoutId },
+        },
+        { idempotencyKey: checkoutId },
+      );
 
       if (!session.url) throw new Error("Stripe did not return a checkout URL.");
       return NextResponse.json({ url: session.url });
@@ -121,20 +144,37 @@ export async function POST(request: Request) {
     });
 
     const invoice = await response.json();
-    if (!response.ok) throw new Error(invoice?.message || invoice?.error || "NOWPayments invoice creation failed.");
+    if (!response.ok) {
+      throw new Error(invoice?.message || invoice?.error || "NOWPayments invoice creation failed.");
+    }
+
     const invoiceUrl = invoice?.invoice_url || invoice?.url;
     if (!invoiceUrl) throw new Error("NOWPayments did not return an invoice URL.");
 
-    await supabase.from("payment_intents").update({ provider_reference: String(invoice.id ?? invoice.invoice_id ?? "") }).eq("id", checkoutId);
+    await supabase
+      .from("payment_intents")
+      .update({ provider_reference: String(invoice.id ?? invoice.invoice_id ?? "") })
+      .eq("id", checkoutId);
+
     return NextResponse.json({ url: invoiceUrl });
   } catch (error) {
     console.error(error);
+
     if (checkoutId) {
       try {
         const supabase = getAdminClient();
-        if (supabase) await supabase.from("payment_intents").update({ status: "failed" }).eq("id", checkoutId).eq("status", "pending");
-      } catch { /* leave failed intent for audit */ }
+        if (supabase) {
+          await supabase
+            .from("payment_intents")
+            .update({ status: "failed" })
+            .eq("id", checkoutId)
+            .eq("status", "pending");
+        }
+      } catch {
+        // Preserve the original checkout error.
+      }
     }
+
     return NextResponse.json({ error: error instanceof Error ? error.message : "Checkout failed." }, { status: 500 });
   }
 }

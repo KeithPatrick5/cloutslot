@@ -1,94 +1,69 @@
 # CloutSlot
 
-**Pay more. Sit higher. Get seen.**
+CloutSlot is a paid-link leaderboard for `cloutslot.space`. Every listing has a cumulative bid, higher bids rank higher, and every paid listing remains on the board unless it is moderated.
 
-CloutSlot is a paid-link leaderboard. Every listing has a cumulative bid, higher bids rank higher, and everyone who has paid remains on the board.
+## Production features
 
-## Included
-
-- Responsive dark leaderboard UI
+- Leaderboard-first responsive homepage
 - Live rank ordering by cumulative paid amount
 - Public outbound click counts
 - Stripe Checkout payments
 - NOWPayments crypto invoices
-- Verified Stripe webhooks
-- Verified NOWPayments HMAC-SHA512 IPN callbacks
+- Verified Stripe webhook signatures
+- Verified NOWPayments HMAC-SHA512 IPN signatures
 - Supabase/Postgres persistence
-- Provider-neutral, idempotent payment reconciliation
-- Existing URLs only pay the difference needed to reach a higher displayed total
-- Demo mode when the database is not configured
+- Idempotent payment reconciliation
+- Existing URLs pay only the difference needed to reach a higher displayed total
+- Existing listing identity cannot be overwritten by a rebid
+- No fake/demo listings in production
 - No user accounts required
 
-## Run locally
+## Database
 
-```bash
-npm install
-npm run dev
-```
+Run `supabase/schema.sql` once in the Supabase SQL editor before accepting payments.
 
-Open `http://localhost:3000`.
+## Production endpoints
 
-## One-command payment setup
-
-```bash
-npm run setup:payments
-```
-
-The setup script asks for:
-
-- public site URL
-- Supabase project URL
-- Supabase service-role key
-- Stripe secret key + webhook signing secret
-- NOWPayments API key + IPN secret
-
-It writes `.env.local` with mode `600`, validates the Stripe and NOWPayments API keys when possible, and prints the two webhook URLs.
-
-You can leave either payment provider blank and run with only the other one.
-
-## Database setup
-
-Run `supabase/schema.sql` once in the Supabase SQL editor. It creates the listings, payment intents, payment ledger, idempotent payment completion function, and click counter.
-
-## Production webhook URLs
-
-Stripe:
+Stripe webhook:
 
 ```text
-https://YOUR_DOMAIN/api/webhooks/stripe
+https://cloutslot.space/api/webhooks/stripe
 ```
 
-Subscribe it to `checkout.session.completed`.
-
-NOWPayments:
+Subscribe to:
 
 ```text
-https://YOUR_DOMAIN/api/webhooks/nowpayments
+checkout.session.completed
 ```
 
-Generate an IPN secret in NOWPayments and keep it in `NOWPAYMENTS_IPN_SECRET`.
+NOWPayments IPN:
 
-NOWPayments does not deliver callbacks to localhost, so live crypto checkout should use a public HTTPS `NEXT_PUBLIC_SITE_URL`.
+```text
+https://cloutslot.space/api/webhooks/nowpayments
+```
 
 ## Environment variables
 
 ```text
-NEXT_PUBLIC_SITE_URL
+NEXT_PUBLIC_SITE_URL=https://cloutslot.space
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 STRIPE_SECRET_KEY
 STRIPE_WEBHOOK_SECRET
 NOWPAYMENTS_API_KEY
 NOWPAYMENTS_IPN_SECRET
-NOWPAYMENTS_API_BASE_URL
+NOWPAYMENTS_API_BASE_URL=https://api.nowpayments.io/v1
 ```
 
-Never expose `SUPABASE_SERVICE_ROLE_KEY`, Stripe secrets, or NOWPayments secrets in browser code.
+All service/API keys belong in Vercel environment variables. Never expose them in browser code or commit them to GitHub.
 
 ## Ranking behavior
 
-If a URL is already at $100 and raises its total bid to $140, CloutSlot charges $40 through whichever provider was selected. The webhook credits the $40 only after the provider reports a completed payment.
+If a URL is at $100 and its total bid is raised to $140, checkout charges $40. The payment webhook credits that $40 only after the provider confirms payment. The board then reorders automatically.
 
-## Moderation
+## Local development
 
-Before serious public traffic, add an admin moderation path or database workflow for malware, fraud, impersonation, illegal content, and abuse. Payment buys placement, not immunity from moderation or guaranteed traffic.
+```bash
+npm install
+npm run dev
+```
