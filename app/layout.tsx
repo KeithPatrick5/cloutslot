@@ -3,20 +3,20 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://cloutslot.space"),
-  title: "CloutSlot — The paid leaderboard",
-  description: "A public market for attention. Your total bid is your rank, every listing links out, and every click is counted.",
+  title: "CloutSlot — Promote your social",
+  description: "A paid leaderboard for social media. Promote your Instagram, TikTok, YouTube, X, Twitch, or other social profile and rank higher with a higher bid.",
   alternates: { canonical: "/" },
   openGraph: {
-    title: "CloutSlot — The paid leaderboard",
-    description: "Pay more. Rank higher. Get seen.",
+    title: "CloutSlot — Promote your social",
+    description: "Get seen. Grow your social. Higher bids rank higher.",
     url: "https://cloutslot.space",
     siteName: "CloutSlot",
     type: "website",
   },
   twitter: {
     card: "summary",
-    title: "CloutSlot — The paid leaderboard",
-    description: "Pay more. Rank higher. Get seen.",
+    title: "CloutSlot — Promote your social",
+    description: "Get seen. Grow your social. Higher bids rank higher.",
   },
 };
 
