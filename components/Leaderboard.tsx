@@ -27,6 +27,19 @@ function initials(name: string) {
     .join("");
 }
 
+function platform(url: string) {
+  const value = url.toLowerCase();
+  if (value.includes("instagram.com")) return "INSTAGRAM";
+  if (value.includes("tiktok.com")) return "TIKTOK";
+  if (value.includes("youtube.com") || value.includes("youtu.be")) return "YOUTUBE";
+  if (value.includes("x.com") || value.includes("twitter.com")) return "X";
+  if (value.includes("twitch.tv")) return "TWITCH";
+  if (value.includes("facebook.com") || value.includes("fb.com")) return "FACEBOOK";
+  if (value.includes("threads.net")) return "THREADS";
+  if (value.includes("linkedin.com")) return "LINKEDIN";
+  return "SOCIAL";
+}
+
 export default function Leaderboard({ initialListings, live, loadError, paymentProviders }: Props) {
   const [listings, setListings] = useState(initialListings);
   const [serviceError, setServiceError] = useState(loadError || "");
@@ -125,7 +138,7 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
             <span className={`system-state ${live && !serviceError ? "online" : "offline"}`}>
               {live && !serviceError ? "LIVE" : "STATUS"}
             </span>
-            <button className="top-bid" onClick={() => openBid()}>BUY A SLOT</button>
+            <button className="top-bid" onClick={() => openBid()}>PROMOTE YOUR SOCIAL</button>
           </div>
         </div>
       </header>
@@ -135,33 +148,33 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
 
       <section className="masthead shell">
         <div className="masthead-copy">
-          <div className="kicker">PUBLIC MARKET FOR ATTENTION</div>
-          <h1>PAY MORE.<br />RANK HIGHER.</h1>
-          <p>Your total bid is your position. Every listing is clickable. Every click is counted. No algorithm decides who gets seen.</p>
+          <div className="kicker">THE PAID LEADERBOARD FOR SOCIAL MEDIA</div>
+          <h1>GET SEEN.<br />GROW YOUR SOCIAL.</h1>
+          <p>Promote your Instagram, TikTok, YouTube, X, Twitch, or other social profile. Higher bids rank higher.</p>
         </div>
         <div className="takeover">
-          <span>PRICE TO TAKE #1</span>
+          <span>CLAIM #1 FOR</span>
           <strong>{money(priceForFirst)}</strong>
-          <button onClick={() => openBid()}>TAKE THE TOP SPOT →</button>
+          <button onClick={() => openBid()}>PROMOTE YOUR SOCIAL →</button>
         </div>
       </section>
 
-      <section className="ticker shell" aria-label="Market statistics">
-        <div><span>LISTINGS</span><strong>{stats.count}</strong></div>
+      <section className="ticker shell" aria-label="Leaderboard statistics">
+        <div><span>SOCIALS</span><strong>{stats.count}</strong></div>
         <div><span>MONEY ON BOARD</span><strong>{money(stats.totalBid)}</strong></div>
-        <div><span>OUTBOUND CLICKS</span><strong>{stats.clicks.toLocaleString()}</strong></div>
+        <div><span>PROFILE CLICKS</span><strong>{stats.clicks.toLocaleString()}</strong></div>
         <div><span>LEADING BID</span><strong>{money(firstPlace)}</strong></div>
       </section>
 
       <section className="board shell" id="leaderboard">
         <div className="board-bar">
-          <div><span className="section-number">01</span><h2>THE LEADERBOARD</h2></div>
-          <p>Updated automatically. Highest paid total wins the highest position.</p>
+          <div><span className="section-number">01</span><h2>TOP SOCIALS</h2></div>
+          <p>Your bid decides your rank.</p>
         </div>
 
         <div className="table">
           <div className="table-head">
-            <span>RANK</span><span>PROJECT</span><span>CLICKS</span><span>BID</span><span>ACTION</span>
+            <span>RANK</span><span>SOCIAL</span><span>CLICKS</span><span>BID</span><span>ACTION</span>
           </div>
 
           {listings.map((item, index) => (
@@ -177,21 +190,21 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
                 </a>
                 <div className="project-text">
                   <a className="project-name" href={`/go/${item.id}`} target="_blank" rel="noreferrer">{item.name} ↗</a>
-                  <p>{item.tagline}</p>
+                  <p>{platform(item.url)} · {item.tagline}</p>
                 </div>
               </div>
 
               <div className="metric"><span>CLICKS</span><strong>{item.clicks.toLocaleString()}</strong></div>
               <div className="metric bid"><span>BID</span><strong>{money(item.bid_cents)}</strong></div>
-              <div className="outbid"><button onClick={() => openBid(item.bid_cents / 100 + 1)}>BEAT WITH {money(item.bid_cents + 100)}</button></div>
+              <div className="outbid"><button onClick={() => openBid(item.bid_cents / 100 + 1)}>CLAIM FOR {money(item.bid_cents + 100)}</button></div>
             </div>
           ))}
 
           {listings.length === 0 && !serviceError && (
             <div className="empty-board">
-              <span>NO PAID LISTINGS YET</span>
+              <span>NO SOCIALS PROMOTED YET</span>
               <strong>#1 costs $1.</strong>
-              <button onClick={() => openBid(1)}>CLAIM FIRST PLACE →</button>
+              <button onClick={() => openBid(1)}>PROMOTE YOUR SOCIAL →</button>
             </div>
           )}
         </div>
@@ -200,40 +213,40 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
       <section className="rules shell" id="rules">
         <div className="board-bar">
           <div><span className="section-number">02</span><h2>RULES</h2></div>
-          <p>Intentionally simple.</p>
+          <p>Simple on purpose.</p>
         </div>
         <div className="rules-grid">
-          <article><span>01</span><h3>YOUR BID IS YOUR SCORE.</h3><p>Choose the total amount you want displayed. Higher total means higher rank.</p></article>
-          <article><span>02</span><h3>REBIDS PAY THE DIFFERENCE.</h3><p>If the same URL is already listed, you only pay the amount needed to raise its existing total.</p></article>
-          <article><span>03</span><h3>YOUR SLOT STAYS.</h3><p>Getting outbid moves you down; it does not remove you. You can raise the total again at any time.</p></article>
-          <article><span>04</span><h3>CLICKS ARE PUBLIC.</h3><p>Every outbound visit through the board increments the public click count for that listing.</p></article>
+          <article><span>01</span><h3>ADD YOUR SOCIAL.</h3><p>Submit the profile you want people to discover.</p></article>
+          <article><span>02</span><h3>CHOOSE YOUR BID.</h3><p>Higher bids rank higher on the board.</p></article>
+          <article><span>03</span><h3>GET OUTBID? MOVE DOWN.</h3><p>Your social stays listed. Raise your bid whenever you want.</p></article>
+          <article><span>04</span><h3>CLICKS ARE PUBLIC.</h3><p>Everyone can see how many visits each social profile gets from CloutSlot.</p></article>
         </div>
       </section>
 
       <section className="final-cta shell">
-        <span>THE BOARD DOESN&apos;T CARE WHO YOU ARE.</span>
-        <h2>IT ONLY CARES WHAT YOU BID.</h2>
-        <button onClick={() => openBid()}>BUY YOUR POSITION — {money(priceForFirst)} TAKES #1</button>
+        <span>INSTAGRAM · TIKTOK · YOUTUBE · X · TWITCH · AND MORE</span>
+        <h2>PUT YOUR SOCIAL AT THE TOP.</h2>
+        <button onClick={() => openBid()}>PROMOTE YOUR SOCIAL — {money(priceForFirst)} TAKES #1</button>
       </section>
 
       <footer className="footer shell">
         <span>© 2026 CLOUTSLOT.SPACE</span>
-        <span>PLACEMENT IS PAID. TRAFFIC IS NOT GUARANTEED.</span>
+        <span>PAID SOCIAL DISCOVERY LEADERBOARD.</span>
       </footer>
 
       {modalOpen && (
         <div className="drawer-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setModalOpen(false); }}>
           <aside className="bid-drawer" role="dialog" aria-modal="true" aria-labelledby="bid-title">
             <div className="drawer-head">
-              <div><span>NEW BID</span><h2 id="bid-title">BUY YOUR POSITION</h2></div>
+              <div><span>PROMOTE YOUR SOCIAL</span><h2 id="bid-title">BUY YOUR POSITION</h2></div>
               <button className="close" onClick={() => setModalOpen(false)} aria-label="Close">×</button>
             </div>
 
             <form onSubmit={submitBid}>
-              <label>PROJECT NAME<input name="name" maxLength={60} autoComplete="organization" required /></label>
-              <label>WEBSITE URL<input name="url" type="url" placeholder="https://example.com" autoComplete="url" required /></label>
-              <label>ONE-LINE PITCH<input name="tagline" maxLength={120} placeholder="Why should anyone click?" required /></label>
-              <label>LOGO URL <em>OPTIONAL</em><input name="logoUrl" type="url" placeholder="https://example.com/logo.png" /></label>
+              <label>HANDLE / CREATOR NAME<input name="name" maxLength={60} placeholder="@yourhandle" required /></label>
+              <label>SOCIAL PROFILE URL<input name="url" type="url" placeholder="https://instagram.com/yourhandle" autoComplete="url" required /></label>
+              <label>SHORT BIO<input name="tagline" maxLength={120} placeholder="What do you post?" required /></label>
+              <label>PROFILE IMAGE URL <em>OPTIONAL</em><input name="logoUrl" type="url" placeholder="https://..." /></label>
 
               <label className="bid-field">TOTAL BID
                 <div><span>$</span><input name="bid" type="number" min="1" step="1" defaultValue={Math.ceil(suggestedBid)} required /></div>
@@ -258,7 +271,7 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
             </form>
 
             <div className="drawer-foot">
-              <p>For an existing URL, payment increases its existing bid but does not replace that listing&apos;s identity.</p>
+              <p>Already listed? Submit the same profile URL and raise its bid.</p>
               <p>Fraud, malware, impersonation, illegal content, and abuse may be removed.</p>
             </div>
           </aside>
