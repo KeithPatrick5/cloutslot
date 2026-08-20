@@ -1,28 +1,36 @@
-import { demoListings } from "./demo";
 import { getAdminClient, hasLiveDatabase } from "./supabase";
 import type { Listing } from "./types";
 
-export async function getListings(): Promise<{ listings: Listing[]; demo: boolean }> {
+export type LeaderboardResult = {
+  listings: Listing[];
+  live: boolean;
+  error?: string;
+};
+
+export async function getListings(): Promise<LeaderboardResult> {
   if (!hasLiveDatabase()) {
-    return { listings: [...demoListings].sort((a, b) => b.bid_cents - a.bid_cents), demo: true };
+    return { listings: [], live: false, error: "Leaderboard database is not configured." };
   }
 
   const supabase = getAdminClient();
-  if (!supabase) return { listings: demoListings, demo: true };
+  if (!supabase) {
+    return { listings: [], live: false, error: "Leaderboard database is unavailable." };
+  }
 
   const { data, error } = await supabase
     .from("listings")
     .select("id,name,tagline,url,logo_url,bid_cents,clicks,active,created_at,updated_at")
     .eq("active", true)
     .order("bid_cents", { ascending: false })
+    .order("created_at", { ascending: true })
     .limit(250);
 
   if (error) {
     console.error("Leaderboard query failed", error);
-    return { listings: demoListings, demo: true };
+    return { listings: [], live: false, error: "The live leaderboard could not be loaded." };
   }
 
-  return { listings: (data ?? []) as Listing[], demo: false };
+  return { listings: (data ?? []) as Listing[], live: true };
 }
 
 export function normalizeUrl(raw: string) {
