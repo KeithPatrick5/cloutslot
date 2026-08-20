@@ -7,6 +7,22 @@ export type LeaderboardResult = {
   error?: string;
 };
 
+type SupabaseError = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+function logDatabaseError(error: SupabaseError) {
+  console.error("Leaderboard query failed", {
+    code: error.code || "unknown",
+    message: error.message || "Unknown Supabase error",
+    details: error.details || null,
+    hint: error.hint || null,
+  });
+}
+
 export async function getListings(): Promise<LeaderboardResult> {
   if (!hasLiveDatabase()) {
     return { listings: [], live: false, error: "Leaderboard database is not configured." };
@@ -26,7 +42,7 @@ export async function getListings(): Promise<LeaderboardResult> {
     .limit(250);
 
   if (error) {
-    console.error("Leaderboard query failed", error);
+    logDatabaseError(error);
     return { listings: [], live: false, error: "The live leaderboard could not be loaded." };
   }
 

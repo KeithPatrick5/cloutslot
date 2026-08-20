@@ -1,15 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://ujiojxkywwcrfmagigpl.supabase.co";
+function serverEnv(name: "SUPABASE_URL" | "SUPABASE_SERVICE_ROLE_KEY") {
+  return process.env[name]?.trim() ?? "";
+}
 
 export function hasLiveDatabase() {
-  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return Boolean(serverEnv("SUPABASE_URL") && serverEnv("SUPABASE_SERVICE_ROLE_KEY"));
 }
 
 export function getAdminClient() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) return null;
-  return createClient(SUPABASE_URL, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const url = serverEnv("SUPABASE_URL");
+  const key = serverEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) return null;
+
+  return createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
   });
 }
