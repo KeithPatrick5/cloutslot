@@ -6,9 +6,8 @@ export const MINIMUM_CHARGE_CENTS: Record<PaymentProvider, number> = {
 };
 
 export const MINIMUM_PUBLIC_BID_CENTS = MINIMUM_CHARGE_CENTS.stripe;
-export const OUTBID_INCREMENT_CENTS = 1;
+export const OUTBID_INCREMENT_CENTS = 100;
 
 export function minimumChargeCents(provider: PaymentProvider) {
   return MINIMUM_CHARGE_CENTS[provider];
 }
-
