@@ -30,10 +30,18 @@ function metaContent(html: string, keys: string[]) {
 function cleanTitle(title: string, fallback: string) {
   if (!title) return fallback;
   const cleaned = title
+    .replace(/\s+\(@[^)]+\)\s+(?:on\s+)?(?:Instagram|TikTok|YouTube|X|Twitter|Twitch|Threads).*$/i, "")
     .replace(/\s*[|·–-]\s*(Instagram|TikTok|YouTube|X|Twitter|Twitch|Threads).*$/i, "")
     .replace(/\s*\(@[^)]+\)\s*$/i, "")
     .trim();
   return cleaned.slice(0, 60) || fallback;
+}
+
+function cleanDescription(description: string, fallback: string) {
+  const cleaned = description.replace(/\s+/g, " ").trim();
+  if (!cleaned) return fallback;
+  if (cleaned.length <= 120) return cleaned;
+  return `${cleaned.slice(0, 117).trimEnd()}…`;
 }
 
 export async function POST(request: Request) {
@@ -75,7 +83,7 @@ export async function POST(request: Request) {
         profile: {
           ...profile,
           name: cleanTitle(title, profile.handle),
-          tagline: description.slice(0, 120) || `Follow ${profile.handle} on ${profile.platformLabel}.`,
+          tagline: cleanDescription(description, `Follow ${profile.handle} on ${profile.platformLabel}.`),
           metadataFound,
         },
       },
@@ -88,4 +96,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
