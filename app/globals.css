@@ -74,6 +74,27 @@ a:focus-visible {
   letter-spacing: -.04em;
 }
 
+.traffic-counter {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #626975;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.traffic-counter > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #18a05e;
+  box-shadow: 0 0 0 3px #e4f6ec;
+}
+
+.traffic-counter strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.traffic-counter em { font-style: normal; }
+
 .nav-row nav {
   display: flex;
   align-items: center;
@@ -688,6 +709,8 @@ a:focus-visible {
   .nav-row { min-height: 58px; }
   .wordmark { font-size: 17px; }
   .wordmark > span { width: 31px; height: 25px; }
+  .traffic-counter { margin-left: auto; font-size: 10px; }
+  .traffic-counter em { display: none; }
   .nav-row nav { gap: 0; }
   .nav-row nav a { display: none; }
   .nav-row nav button { padding: 8px 10px; font-size: 10px; }

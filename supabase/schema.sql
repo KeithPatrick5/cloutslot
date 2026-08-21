@@ -48,6 +48,59 @@ alter table public.listings enable row level security;
 alter table public.payment_intents enable row level security;
 alter table public.bid_payments enable row level security;
 
+create table if not exists public.site_visitors (
+  visitor_id uuid primary key,
+  first_seen_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  pageviews bigint not null default 1 check (pageviews >= 0),
+  last_path text not null default '/'
+);
+
+alter table public.site_visitors enable row level security;
+create index if not exists site_visitors_last_seen_idx on public.site_visitors (last_seen_at desc);
+
+create or replace function public.register_site_visit(
+  p_visitor_id uuid,
+  p_path text default '/',
+  p_is_pageview boolean default false
+)
+returns table (
+  online_visitors bigint,
+  visitors_last_hour bigint,
+  total_visitors bigint,
+  total_pageviews bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.site_visitors (visitor_id, first_seen_at, last_seen_at, pageviews, last_path)
+  values (
+    p_visitor_id,
+    now(),
+    now(),
+    1,
+    left(coalesce(nullif(trim(p_path), ''), '/'), 200)
+  )
+  on conflict (visitor_id) do update
+  set last_seen_at = now(),
+      last_path = excluded.last_path,
+      pageviews = public.site_visitors.pageviews + case when p_is_pageview then 1 else 0 end;
+
+  return query
+  select
+    count(*) filter (where last_seen_at >= now() - interval '5 minutes'),
+    count(*) filter (where last_seen_at >= now() - interval '1 hour'),
+    count(*),
+    coalesce(sum(pageviews), 0)::bigint
+  from public.site_visitors;
+end;
+$$;
+
+revoke all on function public.register_site_visit(uuid, text, boolean) from public, anon, authenticated;
+grant execute on function public.register_site_visit(uuid, text, boolean) to service_role;
+
 create or replace function public.complete_bid_payment(
   p_checkout_id uuid,
   p_provider text,

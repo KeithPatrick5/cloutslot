@@ -85,6 +85,7 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
+  const [onlineVisitors, setOnlineVisitors] = useState<number | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -133,6 +134,33 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
       window.clearInterval(timer);
     };
   }, [live]);
+
+  useEffect(() => {
+    let stopped = false;
+
+    async function refreshTraffic(kind: "pageview" | "heartbeat") {
+      try {
+        const response = await fetch("/api/analytics", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ kind, path: window.location.pathname }),
+        });
+        const json = await response.json();
+        if (!stopped && response.ok && json.available === true && Number.isFinite(json.online)) {
+          setOnlineVisitors(json.online);
+        }
+      } catch {
+        // The counter stays hidden until a verified database value is available.
+      }
+    }
+
+    void refreshTraffic("pageview");
+    const timer = window.setInterval(() => refreshTraffic("heartbeat"), 60000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -213,6 +241,13 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
             <span aria-hidden="true">C/S</span>
             CloutSlot
           </Link>
+          {onlineVisitors !== null ? (
+            <div className="traffic-counter" aria-label={`${onlineVisitors} visitors online now`}>
+              <span aria-hidden="true" />
+              <strong>{onlineVisitors.toLocaleString()}</strong>
+              <em>online now</em>
+            </div>
+          ) : null}
           <nav aria-label="Primary navigation">
             <a href="#board">Leaderboard</a>
             <a href="#how">How it works</a>
