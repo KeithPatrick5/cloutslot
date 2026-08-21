@@ -79,6 +79,7 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
   const [onlineVisitors, setOnlineVisitors] = useState<number | null>(null);
+  const [totalVisitors, setTotalVisitors] = useState<number | null>(null);
   const [profilePlatform, setProfilePlatform] = useState<SocialPlatformId>("instagram");
   const [profileInput, setProfileInput] = useState("");
   const [resolvedProfileUrl, setResolvedProfileUrl] = useState("");
@@ -153,6 +154,7 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
         const json = await response.json();
         if (!stopped && response.ok && json.available === true && Number.isFinite(json.online)) {
           setOnlineVisitors(json.online);
+          if (Number.isFinite(json.totalVisitors)) setTotalVisitors(json.totalVisitors);
         }
       } catch {
         // The counter stays hidden until a verified database value is available.
@@ -350,11 +352,18 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
             <span aria-hidden="true">C/S</span>
             CloutSlot
           </Link>
-          {onlineVisitors !== null ? (
-            <div className="traffic-counter" aria-label={`${onlineVisitors} visitors online now`}>
-              <span aria-hidden="true" />
-              <strong>{onlineVisitors.toLocaleString()}</strong>
-              <em>online now</em>
+          {onlineVisitors !== null && totalVisitors !== null ? (
+            <div className="traffic-counter" aria-label={`${onlineVisitors} online now, ${totalVisitors} total visitors`}>
+              <span className="traffic-live">
+                <i aria-hidden="true" />
+                <strong>{onlineVisitors.toLocaleString()}</strong>
+                <em>online</em>
+              </span>
+              <span className="traffic-divider" aria-hidden="true" />
+              <span className="traffic-total">
+                <strong>{totalVisitors.toLocaleString()}</strong>
+                <em>total visitors</em>
+              </span>
             </div>
           ) : null}
           <nav aria-label="Primary navigation">

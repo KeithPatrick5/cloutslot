@@ -78,13 +78,16 @@ a:focus-visible {
   margin-right: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 9px;
   color: #626975;
   font-size: 11px;
   white-space: nowrap;
 }
 
-.traffic-counter > span {
+.traffic-live,
+.traffic-total { display: inline-flex; align-items: center; gap: 5px; }
+
+.traffic-live > i {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -94,6 +97,7 @@ a:focus-visible {
 
 .traffic-counter strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 .traffic-counter em { font-style: normal; }
+.traffic-divider { width: 1px; height: 14px; background: #d9dde3; }
 
 .nav-row nav {
   display: flex;
@@ -789,7 +793,8 @@ a:focus-visible {
   .wordmark { font-size: 17px; }
   .wordmark > span { width: 31px; height: 25px; }
   .traffic-counter { margin-left: auto; font-size: 10px; }
-  .traffic-counter em { display: none; }
+  .traffic-total em { font-size: 0; }
+  .traffic-total em::after { content: "total"; font-size: 9px; }
   .nav-row nav { gap: 0; }
   .nav-row nav a { display: none; }
   .nav-row nav button { padding: 8px 10px; font-size: 10px; }
