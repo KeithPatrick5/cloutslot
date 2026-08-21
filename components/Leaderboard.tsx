@@ -293,11 +293,35 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
       return;
     }
 
+    let submittedName = profileName || profile.handle;
+    let submittedTagline = profileTagline || `Follow ${profile.handle} on ${profile.platformLabel}.`;
+    let submittedLogoUrl = profileLogoUrl;
+    let submittedUrl = resolvedProfileUrl || profile.url;
+
+    if (!editingDetails && profileStatus !== "Profile details loaded.") {
+      try {
+        const previewResponse = await fetch("/api/profile-preview", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ platform: profilePlatform, value: profileInput }),
+        });
+        const previewJson = await previewResponse.json();
+        if (previewResponse.ok && previewJson.profile) {
+          submittedName = previewJson.profile.name;
+          submittedTagline = previewJson.profile.tagline;
+          submittedLogoUrl = previewJson.profile.avatarUrl || "";
+          submittedUrl = previewJson.profile.url;
+        }
+      } catch {
+        // Continue with the safe username-derived fallback.
+      }
+    }
+
     const payload = {
-      name: profileName || profile.handle,
-      url: resolvedProfileUrl || profile.url,
-      tagline: profileTagline || `Follow ${profile.handle} on ${profile.platformLabel}.`,
-      logoUrl: profileLogoUrl,
+      name: submittedName,
+      url: submittedUrl,
+      tagline: submittedTagline,
+      logoUrl: submittedLogoUrl,
       targetBidDollars: suggestedBid,
       provider,
     };
