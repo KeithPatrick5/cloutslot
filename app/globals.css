@@ -564,6 +564,8 @@ a:focus-visible {
 }
 .site-footer strong { color: var(--ink); font-size: 14px; }
 .site-footer a { color: #555c67; text-decoration: none; }
+.site-footer a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.footer-credit { margin-right: auto; }
 
 .modal-backdrop {
   position: fixed;
@@ -758,7 +760,8 @@ a:focus-visible {
   .how-section li p { max-width: none; }
 
   .site-footer .shell { min-height: 92px; align-items: flex-start; flex-direction: column; justify-content: center; gap: 5px; }
-  .site-footer a { display: none; }
+  .site-footer .back-to-board { display: none; }
+  .footer-credit { margin-right: 0; }
 
   .modal-backdrop { padding: 0; place-items: end center; }
   .bid-modal { width: 100%; max-height: 94vh; border-right: 0; border-bottom: 0; border-left: 0; }

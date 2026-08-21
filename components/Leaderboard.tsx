@@ -389,7 +389,15 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
       </main>
 
       <footer className="site-footer">
-        <div className="shell"><strong>CloutSlot</strong><span>Paid placement for social profiles.</span><a href="#board">Back to leaderboard ↑</a></div>
+        <div className="shell">
+          <strong>CloutSlot</strong>
+          <span className="footer-credit">
+            Inspired by <a href="https://outbid.lol" target="_blank" rel="noopener noreferrer">outbid.lol</a>
+            <span aria-hidden="true"> · </span>
+            Credit to <a href="https://x.com/jonathan_wilke" target="_blank" rel="noopener noreferrer">@jonathan_wilke</a>
+          </span>
+          <a className="back-to-board" href="#board">Back to leaderboard ↑</a>
+        </div>
       </footer>
 
       {modalOpen ? (
