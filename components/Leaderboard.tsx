@@ -3,6 +3,13 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { MINIMUM_CHARGE_CENTS, MINIMUM_PUBLIC_BID_CENTS, OUTBID_INCREMENT_CENTS } from "@/lib/bids";
+import {
+  detectSocialPlatform,
+  resolveSocialProfile,
+  SOCIAL_PLATFORMS,
+  type SocialPlatformId,
+} from "@/lib/social";
 import type { Listing } from "@/lib/types";
 
 type Provider = "stripe" | "nowpayments";
@@ -26,7 +33,8 @@ function money(cents: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
   }).format(cents / 100);
 }
 
@@ -51,33 +59,18 @@ function platform(url: string): SocialPlatform {
   return { name: "Social", key: "social", mark: "@" };
 }
 
-function guessName(url: string) {
-  try {
-    const path = new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "";
-    return path ? `@${path.replace(/^@/, "")}` : "";
-  } catch {
-    return "";
-  }
-}
-
-function validProfileUrl(value: string) {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
-}
-
 export default function Leaderboard({ initialListings, live, loadError, paymentProviders }: Props) {
-  const initialFirstPrice = Math.max(1, (initialListings[0]?.bid_cents ?? 0) / 100 + 1);
+  const initialFirstPrice = Math.max(
+    MINIMUM_PUBLIC_BID_CENTS,
+    (initialListings[0]?.bid_cents ?? 0) + OUTBID_INCREMENT_CENTS,
+  ) / 100;
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const profileRequestRef = useRef(0);
   const [listings, setListings] = useState(initialListings);
   const [databaseLive, setDatabaseLive] = useState(live);
   const [serviceError, setServiceError] = useState(loadError || "");
   const [modalOpen, setModalOpen] = useState(false);
   const [suggestedBid, setSuggestedBid] = useState(initialFirstPrice);
-  const [suggestedUrl, setSuggestedUrl] = useState("");
   const [quickUrl, setQuickUrl] = useState("");
   const [quickBid, setQuickBid] = useState(initialFirstPrice);
   const [quickError, setQuickError] = useState("");
@@ -86,6 +79,15 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
   const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
   const [onlineVisitors, setOnlineVisitors] = useState<number | null>(null);
+  const [profilePlatform, setProfilePlatform] = useState<SocialPlatformId>("instagram");
+  const [profileInput, setProfileInput] = useState("");
+  const [resolvedProfileUrl, setResolvedProfileUrl] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileTagline, setProfileTagline] = useState("");
+  const [profileLogoUrl, setProfileLogoUrl] = useState("");
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileStatus, setProfileStatus] = useState("");
+  const [editingDetails, setEditingDetails] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -114,7 +116,10 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
 
         if (Array.isArray(json.listings)) {
           setListings(json.listings);
-          const minimum = Math.max(1, (json.listings[0]?.bid_cents ?? 0) / 100 + 1);
+          const minimum = Math.max(
+            MINIMUM_PUBLIC_BID_CENTS,
+            (json.listings[0]?.bid_cents ?? 0) + OUTBID_INCREMENT_CENTS,
+          ) / 100;
           setQuickBid((current) => Math.max(current, minimum));
         }
         setDatabaseLive(json.live === true);
@@ -181,11 +186,38 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
   }, [modalOpen]);
 
   const leader = listings[0];
-  const priceForFirst = (leader?.bid_cents ?? 0) + 100;
+  const priceForFirst = Math.max(
+    MINIMUM_PUBLIC_BID_CENTS,
+    (leader?.bid_cents ?? 0) + OUTBID_INCREMENT_CENTS,
+  );
+  const providerMinimum = MINIMUM_CHARGE_CENTS[provider] / 100;
+
+  function applyProfileFallback(value: string, selectedPlatform: SocialPlatformId) {
+    setProfileInput(value);
+    setProfileStatus("");
+    setEditingDetails(false);
+
+    const detected = detectSocialPlatform(value);
+    const nextPlatform = detected ?? selectedPlatform;
+    if (detected) setProfilePlatform(detected);
+
+    try {
+      const profile = resolveSocialProfile(value, nextPlatform);
+      setResolvedProfileUrl(profile.url);
+      setProfileName(profile.handle);
+      setProfileTagline(`Follow ${profile.handle} on ${profile.platformLabel}.`);
+      setProfileLogoUrl(profile.avatarUrl);
+    } catch {
+      setResolvedProfileUrl("");
+      setProfileName("");
+      setProfileTagline("");
+      setProfileLogoUrl("");
+    }
+  }
 
   function openBid(amount?: number, url = "") {
-    setSuggestedBid(amount ?? Math.max(1, priceForFirst / 100));
-    setSuggestedUrl(url);
+    setSuggestedBid(Math.max(providerMinimum, amount ?? priceForFirst / 100));
+    applyProfileFallback(url, detectSocialPlatform(url) ?? profilePlatform);
     setFormError("");
     setModalOpen(true);
   }
@@ -194,12 +226,57 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
     event.preventDefault();
     setQuickError("");
 
-    if (!validProfileUrl(quickUrl)) {
-      setQuickError("Paste the full link to your social profile.");
+    try {
+      resolveSocialProfile(quickUrl, profilePlatform);
+    } catch (error) {
+      setQuickError(error instanceof Error ? error.message : "Enter your social username or profile URL.");
       return;
     }
 
-    openBid(Math.max(1, quickBid), quickUrl.trim());
+    openBid(Math.max(MINIMUM_PUBLIC_BID_CENTS / 100, quickBid), quickUrl.trim());
+  }
+
+  async function loadProfile() {
+    const requestId = profileRequestRef.current + 1;
+    profileRequestRef.current = requestId;
+    setProfileLoading(true);
+    setProfileStatus("");
+    setFormError("");
+
+    try {
+      const response = await fetch("/api/profile-preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ platform: profilePlatform, value: profileInput }),
+      });
+      const json = await response.json();
+      if (!response.ok) throw new Error(json.error || "Could not read that profile.");
+      if (requestId !== profileRequestRef.current) return;
+
+      const profile = json.profile;
+      setProfilePlatform(profile.platform);
+      setResolvedProfileUrl(profile.url);
+      setProfileName(profile.name);
+      setProfileTagline(profile.tagline);
+      setProfileLogoUrl(profile.avatarUrl || "");
+      setProfileStatus(profile.metadataFound ? "Profile details loaded." : "Profile ready. You can edit the details below.");
+    } catch (error) {
+      if (requestId === profileRequestRef.current) {
+        setFormError(error instanceof Error ? error.message : "Could not read that profile.");
+      }
+    } finally {
+      if (requestId === profileRequestRef.current) setProfileLoading(false);
+    }
+  }
+
+  function choosePlatform(nextPlatform: SocialPlatformId) {
+    setProfilePlatform(nextPlatform);
+    if (profileInput) applyProfileFallback(profileInput, nextPlatform);
+  }
+
+  function chooseProvider(nextProvider: Provider) {
+    setProvider(nextProvider);
+    setSuggestedBid((current) => Math.max(current, MINIMUM_CHARGE_CENTS[nextProvider] / 100));
   }
 
   async function submitBid(event: FormEvent<HTMLFormElement>) {
@@ -207,13 +284,21 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
     setSubmitting(true);
     setFormError("");
 
-    const form = new FormData(event.currentTarget);
+    let profile;
+    try {
+      profile = resolveSocialProfile(profileInput, profilePlatform);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Enter a valid social profile.");
+      setSubmitting(false);
+      return;
+    }
+
     const payload = {
-      name: String(form.get("name") || ""),
-      url: String(form.get("url") || ""),
-      tagline: String(form.get("tagline") || ""),
-      logoUrl: String(form.get("logoUrl") || ""),
-      targetBidDollars: Number(form.get("bid") || 0),
+      name: profileName || profile.handle,
+      url: resolvedProfileUrl || profile.url,
+      tagline: profileTagline || `Follow ${profile.handle} on ${profile.platformLabel}.`,
+      logoUrl: profileLogoUrl,
+      targetBidDollars: suggestedBid,
       provider,
     };
 
@@ -277,23 +362,23 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
         <section className="bid-desk" aria-labelledby="bid-desk-title">
           <div className="desk-heading">
             <span id="bid-desk-title">Enter the board</span>
-            <strong>{leader ? `${money(priceForFirst)} takes #1` : "$1 claims the first spot"}</strong>
+            <strong>{leader ? `${money(priceForFirst)} takes #1` : `${money(MINIMUM_PUBLIC_BID_CENTS)} claims the first spot`}</strong>
           </div>
           <form className="quick-form" onSubmit={startQuickBid} noValidate>
             <label className="profile-url-field">
-              <span>Social profile URL</span>
+              <span>Social username or profile URL</span>
               <input
-                type="url"
+                type="text"
                 value={quickUrl}
                 onChange={(event) => setQuickUrl(event.target.value)}
-                placeholder="https://instagram.com/yourname"
+                placeholder="@yourname or paste your profile link"
                 autoComplete="url"
                 aria-invalid={Boolean(quickError)}
               />
             </label>
             <label className="quick-bid-field">
               <span>Total bid</span>
-              <div><b>$</b><input type="number" min="1" step="1" value={quickBid} onChange={(event) => setQuickBid(Number(event.target.value))} /></div>
+              <div><b>$</b><input type="number" min="0.5" step="0.01" value={quickBid} onChange={(event) => setQuickBid(Number(event.target.value))} /></div>
             </label>
             <button className="continue-button" type="submit">Continue <span aria-hidden="true">→</span></button>
           </form>
@@ -353,8 +438,8 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
                   </div>
                   <div className="listing-stat"><span>Clicks</span><strong>{item.clicks.toLocaleString()}</strong></div>
                   <div className="listing-stat bid-total"><span>Total bid</span><strong>{money(item.bid_cents)}</strong></div>
-                  <button className="row-bid" type="button" onClick={() => openBid(item.bid_cents / 100 + 1)}>
-                    Bid {money(item.bid_cents + 100)}+
+                  <button className="row-bid" type="button" onClick={() => openBid((item.bid_cents + OUTBID_INCREMENT_CENTS) / 100)}>
+                    Bid {money(item.bid_cents + OUTBID_INCREMENT_CENTS)}+
                   </button>
                 </article>
               );
@@ -368,8 +453,8 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
                   <div><strong>First place is open</strong><span>Your profile could be the first click on the board.</span></div>
                 </div>
                 <div className="open-networks" aria-label="Open to any social network">IG&nbsp;&nbsp;TK&nbsp;&nbsp;YT&nbsp;&nbsp;X</div>
-                <div className="listing-stat bid-total"><span>Starts at</span><strong>$1</strong></div>
-                <button className="row-bid primary-row-bid" type="button" onClick={() => openBid(1)}>Claim #1</button>
+                <div className="listing-stat bid-total"><span>Starts at</span><strong>{money(MINIMUM_PUBLIC_BID_CENTS)}</strong></div>
+                <button className="row-bid primary-row-bid" type="button" onClick={() => openBid(MINIMUM_PUBLIC_BID_CENTS / 100)}>Claim #1</button>
               </div>
             ) : null}
           </div>
@@ -395,6 +480,8 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
             Inspired by <a href="https://outbid.lol" target="_blank" rel="noopener noreferrer">outbid.lol</a>
             <span aria-hidden="true"> · </span>
             Credit to <a href="https://x.com/jonathan_wilke" target="_blank" rel="noopener noreferrer">@jonathan_wilke</a>
+            <span aria-hidden="true"> · </span>
+            <a href="https://unavatar.io" target="_blank" rel="noopener noreferrer">Avatars by Unavatar</a>
           </span>
           <a className="back-to-board" href="#board">Back to leaderboard ↑</a>
         </div>
@@ -411,36 +498,97 @@ export default function Leaderboard({ initialListings, live, loadError, paymentP
             <p className="modal-note" id="modal-note">Higher totals rank higher. Existing profile URLs are charged only the difference needed to reach the new total.</p>
 
             <form className="bid-form" onSubmit={submitBid}>
-              <div className="field-grid">
-                <label>
-                  <span>Handle or creator name</span>
-                  <input ref={firstInputRef} name="name" maxLength={60} defaultValue={guessName(suggestedUrl)} placeholder="@yourname" required />
-                </label>
-                <label>
-                  <span>Social profile URL</span>
-                  <input name="url" type="url" defaultValue={suggestedUrl} placeholder="https://instagram.com/yourname" autoComplete="url" required />
-                </label>
-                <label className="wide-field">
-                  <span>Short description</span>
-                  <input name="tagline" maxLength={120} placeholder="What will people find on your profile?" required />
-                </label>
-                <label className="wide-field">
-                  <span>Profile image URL <em>optional</em></span>
-                  <input name="logoUrl" type="url" placeholder="https://..." />
+              <div className="profile-entry">
+                <span className="field-label">Choose your network</span>
+                <div className="platform-picker" role="group" aria-label="Social network">
+                  {SOCIAL_PLATFORMS.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={profilePlatform === item.id ? "selected" : ""}
+                      aria-pressed={profilePlatform === item.id}
+                      onClick={() => choosePlatform(item.id)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="profile-identity-field">
+                  <span>Username or profile URL</span>
+                  <div className="profile-lookup-control">
+                    <input
+                      ref={firstInputRef}
+                      type="text"
+                      value={profileInput}
+                      onChange={(event) => applyProfileFallback(event.target.value, profilePlatform)}
+                      placeholder="@yourname"
+                      autoComplete="url"
+                      required
+                    />
+                    <button type="button" onClick={loadProfile} disabled={profileLoading || !profileInput.trim()}>
+                      {profileLoading ? "Loading…" : "Get profile"}
+                    </button>
+                  </div>
+                  <small>Paste a full link and we&apos;ll detect the network automatically.</small>
                 </label>
               </div>
+
+              {resolvedProfileUrl ? (
+                <div className="profile-preview">
+                  <div className="preview-avatar" aria-hidden="true">
+                    {profileLogoUrl ? (
+                      <Image
+                        src={profileLogoUrl}
+                        alt=""
+                        width={48}
+                        height={48}
+                        unoptimized
+                        onError={() => setProfileLogoUrl("")}
+                      />
+                    ) : <span>{initials(profileName || "Social")}</span>}
+                  </div>
+                  <div className="preview-copy">
+                    <strong>{profileName}</strong>
+                    <span>{resolvedProfileUrl}</span>
+                    <p>{profileTagline}</p>
+                    {profileStatus ? <em>{profileStatus}</em> : null}
+                  </div>
+                  <button className="edit-profile-button" type="button" onClick={() => setEditingDetails((current) => !current)}>
+                    {editingDetails ? "Done" : "Edit"}
+                  </button>
+                </div>
+              ) : null}
+
+              {editingDetails ? (
+                <div className="field-grid profile-edit-fields">
+                  <label>
+                    <span>Display name</span>
+                    <input value={profileName} onChange={(event) => setProfileName(event.target.value)} maxLength={60} required />
+                  </label>
+                  <label>
+                    <span>Profile image URL <em>optional</em></span>
+                    <input value={profileLogoUrl} onChange={(event) => setProfileLogoUrl(event.target.value)} type="url" placeholder="https://..." />
+                  </label>
+                  <label className="wide-field">
+                    <span>Short description</span>
+                    <input value={profileTagline} onChange={(event) => setProfileTagline(event.target.value)} maxLength={120} required />
+                  </label>
+                </div>
+              ) : null}
 
               <div className="payment-row">
                 <label className="total-field">
                   <span>Total bid</span>
-                  <div><b>$</b><input name="bid" type="number" min="1" step="1" defaultValue={Math.ceil(suggestedBid)} required /></div>
+                  <div><b>$</b><input name="bid" type="number" min={providerMinimum} step="0.01" value={suggestedBid} onChange={(event) => setSuggestedBid(Number(event.target.value))} required /></div>
+                  <small>{provider === "stripe" ? "50¢ minimum card charge" : "$5 minimum for crypto network costs"}</small>
                 </label>
                 <fieldset>
                   <legend>Payment method</legend>
-                  <button type="button" aria-pressed={provider === "stripe"} className={provider === "stripe" ? "pay-option selected" : "pay-option"} disabled={!paymentProviders.includes("stripe")} onClick={() => setProvider("stripe")}>
+                  <button type="button" aria-pressed={provider === "stripe"} className={provider === "stripe" ? "pay-option selected" : "pay-option"} disabled={!paymentProviders.includes("stripe")} onClick={() => chooseProvider("stripe")}>
                     <span className="selection-dot" aria-hidden="true" /><strong>Card / wallet</strong><small>Stripe</small>
                   </button>
-                  <button type="button" aria-pressed={provider === "nowpayments"} className={provider === "nowpayments" ? "pay-option selected" : "pay-option"} disabled={!paymentProviders.includes("nowpayments")} onClick={() => setProvider("nowpayments")}>
+                  <button type="button" aria-pressed={provider === "nowpayments"} className={provider === "nowpayments" ? "pay-option selected" : "pay-option"} disabled={!paymentProviders.includes("nowpayments")} onClick={() => chooseProvider("nowpayments")}>
                     <span className="selection-dot" aria-hidden="true" /><strong>Crypto</strong><small>NOWPayments</small>
                   </button>
                 </fieldset>

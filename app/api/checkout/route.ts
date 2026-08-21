@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getAdminClient, hasLiveDatabase } from "@/lib/supabase";
 import { normalizeUrl } from "@/lib/data";
+import { minimumChargeCents } from "@/lib/bids";
 import { availablePaymentProviders, nowPaymentsBaseUrl, type PaymentProvider } from "@/lib/payments";
 
 export const runtime = "nodejs";
@@ -42,8 +43,13 @@ export async function POST(request: Request) {
     const normalizedUrl = normalizeUrl(rawUrl);
     const urlKey = normalizedUrl.toLowerCase();
     const targetBidCents = Math.round(targetDollars * 100);
-    if (targetBidCents < 100) {
-      return NextResponse.json({ error: "Minimum total bid is $1." }, { status: 400 });
+    const minimumCharge = minimumChargeCents(provider);
+    if (targetBidCents < minimumCharge) {
+      const minimum = centsToDollars(minimumCharge).toFixed(2);
+      return NextResponse.json(
+        { error: `${provider === "stripe" ? "Card" : "Crypto"} payments require at least $${minimum}.` },
+        { status: 400 },
+      );
     }
 
     let submittedLogoUrl = "";
@@ -59,9 +65,11 @@ export async function POST(request: Request) {
 
     const currentBid = Number(existing?.bid_cents ?? 0);
     const amountToCharge = targetBidCents - currentBid;
-    if (amountToCharge < 100) {
+    if (amountToCharge < minimumCharge) {
       return NextResponse.json(
-        { error: `That URL is already at $${(currentBid / 100).toFixed(0)}. Raise the total bid by at least $1.` },
+        {
+          error: `That URL is already at $${(currentBid / 100).toFixed(2)}. Raise the total by at least $${centsToDollars(minimumCharge).toFixed(2)} for this payment method.`,
+        },
         { status: 400 },
       );
     }
