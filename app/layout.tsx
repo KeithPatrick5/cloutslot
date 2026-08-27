@@ -18,6 +18,9 @@ export const metadata: Metadata = {
     title: "CloutSlot — Promote your social",
     description: "Get seen. Grow your social. Higher bids rank higher.",
   },
+  other: {
+    "ory-verify": "orynth-1231f5a8f3a741b68e04dca0d6787d6f",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
