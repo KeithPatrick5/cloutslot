@@ -74,13 +74,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Re-bidding an existing URL can increase its score, but it cannot silently
-    // rewrite the listing identity. That prevents a bidder from paying $1 to
-    // hijack another project's name, pitch, or logo.
-    const name = existing?.name ?? submittedName;
-    const tagline = existing?.tagline ?? submittedTagline;
+    // Preserve the existing URL/id, but use the submitted listing details so a
+    // successful rebid can update the description and profile photo atomically
+    // when the payment is confirmed by the webhook.
+    const name = submittedName;
+    const tagline = submittedTagline;
     const listingUrl = existing?.url ?? normalizedUrl;
-    const logoUrl = existing?.logo_url ?? (submittedLogoUrl || null);
+    const logoUrl = submittedLogoUrl || null;
 
     checkoutId = crypto.randomUUID();
     const listingId = existing?.id ?? crypto.randomUUID();
